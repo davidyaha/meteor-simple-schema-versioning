@@ -29,13 +29,24 @@ describe('SimpleSchemaVersioning', function () {
           floor: {
             type: Number,
             max: 100,
-            min: 0
+            min: 0,
+            defaultValue: 1
+          },
+          apartmentNumber: {
+            type: Number,
+            max: 999,
+            min: 1,
+            defaultValue: 1
           }
         });
 
         var ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
 
-        expect(ret).toBeDefined();
+        expect(ret).toEqual({
+          'up':     { '$set': { floor: 1, apartmentNumber: 1 } },
+          'down': {},
+          'backup': {}
+        });
       });
 
     });
