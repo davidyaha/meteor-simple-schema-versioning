@@ -1,16 +1,27 @@
-// Write your package code here!
-
+/**
+ * Created by David Yahalomi on 14/10/2015.
+ */
 SimpleSchemaVersioning = class SimpleSchemaVersioning {
   static getMigrationPlan(baseSchema, deltaSchema) {
+
+    // TODO Use recursive traverse instead of finding actions each type in its turn.
 
     var baseSchemaKeys = _.keys(baseSchema._schema);
     var deltaSchemaKeys = _.keys(deltaSchema._schema);
 
     var addedFields = _.difference(deltaSchemaKeys, baseSchemaKeys);
-
     var ret = handleAddedFields(addedFields, deltaSchema._schema);
 
-    return ret;
+    var removedFields = _.keys(_.pick(deltaSchema._schema, (value) => {return !!value.removed}));
+    console.log('removed', removedFields);
+    if (removedFields.length > 0) {
+      var ret2 = handleRemovedFields(removedFields);
+    }
+
+    var mergeMigrationPlans2 = mergeMigrationPlans(ret, ret2);
+    console.log('merged', JSON.stringify(mergeMigrationPlans2));
+
+    return mergeMigrationPlans2;
   }
 
 
@@ -19,32 +30,32 @@ SimpleSchemaVersioning = class SimpleSchemaVersioning {
 function handleAddedFields(fields, deltaSchema) {
   return fields
     .reduce(
-    (migrationPlan, nextField) => {
-      if (!deltaSchema[nextField])
+    (migrationPlan, currentField) => {
+      if (!deltaSchema[currentField])
         emitError('Cannot find field', 'Cannot find field in delta schema. This is probably a bug so make sure to report it.');
-      else if (!deltaSchema[nextField].defaultValue)
-        emitError('Cannot determine value', 'The added field \'' + nextField + '\' does not have a default value');
+      else if (!deltaSchema[currentField].defaultValue)
+        emitError('Cannot determine value', 'The added field \'' + currentField + '\' does not have a default value');
 
       // Up migration update arguments
       var upSelector = migrationPlan.up[0];
       var upModifier = migrationPlan.up[1];
 
-      upSelector.$or.push({[nextField]: {$exists: false}});
-      upModifier.$set[nextField] = deltaSchema[nextField].defaultValue;
+      upSelector.$or.push({[currentField]: {$exists: false}});
+      upModifier.$set[currentField] = deltaSchema[currentField].defaultValue;
 
       // Down migration update arguments
       var downSelector = migrationPlan.down[0];
       var downModifier = migrationPlan.down[1];
 
-      downSelector.$or.push({[nextField]: {$exists: true}});
-      downModifier.$unset[nextField] = '';
+      downSelector.$or.push({[currentField]: {$exists: true}});
+      downModifier.$unset[currentField] = '';
 
-      // Backup migration update arguments
+      // Backup query arguments
       var backupSelector = migrationPlan.backup[0];
       var backupProjection = migrationPlan.backup[1];
 
-      backupSelector.$or.push({[nextField]: {$exists: true}});
-      backupProjection.fields[nextField] = 1;
+      backupSelector.$or.push({[currentField]: {$exists: true}});
+      backupProjection.fields[currentField] = 1;
 
       return migrationPlan;
     },
@@ -53,7 +64,74 @@ function handleAddedFields(fields, deltaSchema) {
   );
 }
 
+function handleRemovedFields(fields) {
+  console.log('fields', fields);
+  return fields
+    .reduce(
+    (migrationPlan, currentField) => {
+      var upSelector = migrationPlan.up[0];
+      var upModifier = migrationPlan.up[1];
+
+      // Up migration update arguments
+      upSelector.$or.push({[currentField]: {$exists: true}});
+      upModifier.$unset[currentField] = '';
+
+      // Down migration update arguments
+      var downSelector = migrationPlan.down[0];
+      var downModifier = migrationPlan.down[1];
+
+      downSelector._id = 'backedUpIds';
+      downModifier.$set[currentField] = 'backedUpValue';
+
+      // Backup query arguments
+      var backupSelector = migrationPlan.backup[0];
+      var backupProjection = migrationPlan.backup[1];
+
+      backupSelector.$or.push({[currentField]: {$exists: true}});
+      backupProjection.fields[currentField] = 1;
+
+      return migrationPlan;
+    },
+    // initial migration plan
+    {up: [{$or: []}, {$unset: {}}], down: [{$or: []}, {$set: {}}], backup: [{$or: []}, {fields: {}}]}
+  );
+}
+
+function mergeMigrationPlans() {
+  // TODO remove empty modifiers and selectors
+
+  var args = Array.prototype.slice.apply(arguments);
+  return args.reduce(
+    (migrationPlan, currentMigrationPlan) => {
+
+      if (!!currentMigrationPlan) {
+        if (!!currentMigrationPlan.up && currentMigrationPlan.up.length === 2) {
+          // Up migration update arguments
+          _.extend(migrationPlan.up[0], currentMigrationPlan.up[0]);
+          _.extend(migrationPlan.up[1], currentMigrationPlan.up[1]);
+        }
+
+        if (!!currentMigrationPlan.down && currentMigrationPlan.down.length === 2) {
+          // Down migration update arguments
+          _.extend(migrationPlan.down[0], currentMigrationPlan.down[0]);
+          _.extend(migrationPlan.down[1], currentMigrationPlan.down[1]);
+        }
+
+        if (!!currentMigrationPlan.backup && currentMigrationPlan.backup.length === 2) {
+          // Backup query arguments
+          _.extend(migrationPlan.backup[0], currentMigrationPlan.backup[0]);
+          _.extend(migrationPlan.backup[1], currentMigrationPlan.backup[1]);
+        }
+      }
+
+      return migrationPlan;
+    },
+    // initial migration plan
+    {up: [{}, {}], down: [{}, {}], backup: [{}, {}]}
+  )
+}
+
 function emitError(desc, details) {
-  // TODO add config check about trowing errors
+  // TODO add config check about throwing errors
   throw new Meteor.Error(500, desc, details);
 }

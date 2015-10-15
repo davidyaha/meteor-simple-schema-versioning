@@ -9,10 +9,12 @@ Package.describe({
 Package.onUse(function(api) {
   api.versionsFrom('1.2.0.2');
 
-  api.use(['ecmascript', 'underscore']);
+  // TODO PR updates for underscore official package
+  api.use(['ecmascript', 'check', 'davidyaha:official-underscore', 'aldeed:simple-schema@1.3.3']);
 
   api.imply('aldeed:simple-schema');
 
+  api.addFiles('extend-simple-schema.js');
   api.addFiles('SimpleSchemaVersioning.js');
 
   api.export('SimpleSchemaVersioning');
