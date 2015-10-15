@@ -43,10 +43,10 @@ describe('SimpleSchemaVersioning', function () {
         var ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
 
         expect(ret).toEqual({
-          'up':     { '$set': { floor: 1, apartmentNumber: 1 } },
-          'down': {},
-          'backup': {}
-        });
+            "up": [{"$or":[{"floor":{"$exists":false}},{"apartmentNumber":{"$exists":false}}]},{"$set":{"floor":1,"apartmentNumber":1}}],
+            "down":[{"$or":[{"floor":{"$exists":true}},{"apartmentNumber":{"$exists":true}}]},{"$unset":{"floor":"","apartmentNumber":""}}],
+            "backup":[{"$or":[{"floor":{"$exists":true}},{"apartmentNumber":{"$exists":true}}]},{"fields":{"floor":1,"apartmentNumber":1}}]
+          });
       });
 
     });
