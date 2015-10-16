@@ -11,6 +11,8 @@ SimpleSchemaVersioning = class SimpleSchemaVersioning {
 
     var addedFields = _.difference(deltaSchemaKeys, baseSchemaKeys);
     var ret = handleAddedFields(addedFields, deltaSchema._schema);
+    console.log('ret', JSON.stringify(ret));
+
 
     var removedFields = _.keys(_.pick(deltaSchema._schema, (value) => {return !!value.removed}));
     console.log('removed', removedFields);
@@ -33,29 +35,44 @@ function handleAddedFields(fields, deltaSchema) {
     (migrationPlan, currentField) => {
       if (!deltaSchema[currentField])
         emitError('Cannot find field', 'Cannot find field in delta schema. This is probably a bug so make sure to report it.');
-      else if (!deltaSchema[currentField].defaultValue)
+      else if (!deltaSchema[currentField].defaultValue && !deltaSchema[currentField].renamed)
         emitError('Cannot determine value', 'The added field \'' + currentField + '\' does not have a default value');
+      else {
+        // Up migration update arguments
+        var upSelector = migrationPlan.up[0];
+        var upModifier = migrationPlan.up[1];
 
-      // Up migration update arguments
-      var upSelector = migrationPlan.up[0];
-      var upModifier = migrationPlan.up[1];
+        // Down migration update arguments
+        var downSelector = migrationPlan.down[0];
+        var downModifier = migrationPlan.down[1];
 
-      upSelector.$or.push({[currentField]: {$exists: false}});
-      upModifier.$set[currentField] = deltaSchema[currentField].defaultValue;
+        // Backup query arguments
+        var backupSelector = migrationPlan.backup[0];
+        var backupProjection = migrationPlan.backup[1];
 
-      // Down migration update arguments
-      var downSelector = migrationPlan.down[0];
-      var downModifier = migrationPlan.down[1];
+        downSelector.$or.push({[currentField]: {$exists: true}});
 
-      downSelector.$or.push({[currentField]: {$exists: true}});
-      downModifier.$unset[currentField] = '';
+        if (!!deltaSchema[currentField].renamed) {
+          if (!upModifier.$rename) upModifier.$rename = {};
+          if (!downModifier.$rename) downModifier.$rename = {};
 
-      // Backup query arguments
-      var backupSelector = migrationPlan.backup[0];
-      var backupProjection = migrationPlan.backup[1];
+          upSelector.$or.push({[deltaSchema[currentField].renamed]: {$exists: true}});
+          upModifier.$rename[deltaSchema[currentField].renamed] = currentField;
 
-      backupSelector.$or.push({[currentField]: {$exists: true}});
-      backupProjection.fields[currentField] = 1;
+          downModifier.$rename[currentField] = deltaSchema[currentField].renamed;
+
+          backupSelector.$or.push({[deltaSchema[currentField].renamed]: {$exists: true}});
+          backupProjection.fields[deltaSchema[currentField].renamed] = 1;
+        } else {
+          upSelector.$or.push({[currentField]: {$exists: false}});
+          upModifier.$set[currentField] = deltaSchema[currentField].defaultValue;
+
+          downModifier.$unset[currentField] = '';
+
+          backupSelector.$or.push({[currentField]: {$exists: true}});
+          backupProjection.fields[currentField] = 1;
+        }
+      }
 
       return migrationPlan;
     },
