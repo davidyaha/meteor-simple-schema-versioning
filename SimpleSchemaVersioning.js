@@ -26,7 +26,56 @@ SimpleSchemaVersioning = class SimpleSchemaVersioning {
     return mergeMigrationPlans2;
   }
 
+  static determineVersion(schemas, collection) {
+    if (!schemas instanceof Array)
+      emitError('Bad Argument', 'First argument must be an array of simple schema objects.');
+    if (!collection instanceof Mongo.Collection)
+      emitError('Bad Argument', 'Second argument must be a mongo collection.');
 
+    var lastSuccessfulSchemaIndex;
+    var lastSuccessfulSchemaContext;
+
+    var previousSchema;
+    schemas = schemas.map((schema) => {
+      var ret = previousSchema ?  new SimpleSchema([previousSchema, schema]) : schema;
+
+      previousSchema = schema;
+
+      return ret;
+    });
+
+    return collection.find.map((doc) => {
+      var checkFromIndex = 0;
+
+      if (lastSuccessfulSchemaContext &&
+          lastSuccessfulSchemaContext.validate(doc)) {
+        checkFromIndex = lastSuccessfulSchemaIndex;
+      }
+
+      var validIndex = undefined;
+      for (var i = checkFromIndex; i < schemas.length; i++) {
+        var context = schemas[i].newContext();
+        var isValid = context.validate(doc);
+
+        // TODO there is possibly an optimization to be made after finding a valid
+        // schema and than finding an invalid schema. For now I have not implemented it
+        // due to edge cases where you have an v1 = {field1}, v2 = {field1, field2}, v3 = {field1, field2 (optional)}
+        if (isValid) {
+          validIndex = i;
+
+          // Optimization that relies on the assumption that most of the documents will
+          // match to the highest valid version found
+          // TODO Think if this assumption is mostly true
+          if (validIndex < lastSuccessfulSchemaIndex) {
+            lastSuccessfulSchemaContext = context;
+            lastSuccessfulSchemaIndex = validIndex;
+          }
+        }
+      }
+
+      return {_id: doc._id, validSchemaVersion: validIndex}
+    });
+  }
 };
 
 function handleAddedFields(fields, deltaSchema) {
