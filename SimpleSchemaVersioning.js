@@ -11,17 +11,14 @@ SimpleSchemaVersioning = class SimpleSchemaVersioning {
 
     var addedFields = _.difference(deltaSchemaKeys, baseSchemaKeys);
     var ret = handleAddedFields(addedFields, deltaSchema._schema);
-    console.log('ret', JSON.stringify(ret));
 
 
     var removedFields = _.keys(_.pick(deltaSchema._schema, (value) => {return !!value.removed}));
-    console.log('removed', removedFields);
     if (removedFields.length > 0) {
       var ret2 = handleRemovedFields(removedFields);
     }
 
     var mergeMigrationPlans2 = mergeMigrationPlans(ret, ret2);
-    console.log('merged', JSON.stringify(mergeMigrationPlans2));
 
     return mergeMigrationPlans2;
   }
@@ -32,19 +29,19 @@ SimpleSchemaVersioning = class SimpleSchemaVersioning {
     if (!collection instanceof Mongo.Collection)
       emitError('Bad Argument', 'Second argument must be a mongo collection.');
 
-    var lastSuccessfulSchemaIndex;
-    var lastSuccessfulSchemaContext;
 
     var previousSchema;
     schemas = schemas.map((schema) => {
-      var ret = previousSchema ?  new SimpleSchema([previousSchema, schema]) : schema;
-
-      previousSchema = schema;
-
-      return ret;
+      return previousSchema = previousSchema ?  new SimpleSchema([previousSchema, schema]) : schema;
     });
 
-    return collection.find.map((doc) => {
+    var lastSuccessfulSchemaIndex;
+    var lastSuccessfulSchemaContext;
+
+    return collection.find().map((doc) => {
+      var docId = doc._id;
+      delete doc._id;
+
       var checkFromIndex = 0;
 
       if (lastSuccessfulSchemaContext &&
@@ -54,6 +51,7 @@ SimpleSchemaVersioning = class SimpleSchemaVersioning {
 
       var validIndex = undefined;
       for (var i = checkFromIndex; i < schemas.length; i++) {
+
         var context = schemas[i].newContext();
         var isValid = context.validate(doc);
 
@@ -73,7 +71,7 @@ SimpleSchemaVersioning = class SimpleSchemaVersioning {
         }
       }
 
-      return {_id: doc._id, validSchemaVersion: validIndex}
+      return {_id: docId, validSchemaVersion: validIndex}
     });
   }
 };
@@ -131,7 +129,6 @@ function handleAddedFields(fields, deltaSchema) {
 }
 
 function handleRemovedFields(fields) {
-  console.log('fields', fields);
   return fields
     .reduce(
     (migrationPlan, currentField) => {

@@ -10,7 +10,7 @@ Package.onUse(function(api) {
   api.versionsFrom('1.2.0.2');
 
   // TODO PR updates for underscore official package
-  api.use(['ecmascript', 'check', 'davidyaha:official-underscore', 'aldeed:simple-schema@1.3.3']);
+  api.use(['ecmascript', 'mongo', 'check', 'davidyaha:official-underscore', 'aldeed:simple-schema@1.3.3']);
 
   api.imply('aldeed:simple-schema');
 
@@ -21,7 +21,7 @@ Package.onUse(function(api) {
 });
 
 Package.onTest(function(api) {
-  api.use('ecmascript');
+  api.use(['ecmascript', 'mongo']);
   api.use('sanjo:jasmine@0.18.0');
 
   api.use('simple-schema-versioning');
