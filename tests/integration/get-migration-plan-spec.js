@@ -1,3 +1,7 @@
+/**
+ * Created by David Yahalomi on 01/01/2016.
+ */
+
 describe('SimpleSchemaVersioning', function () {
 
   describe('getMigrationPlan', function () {
@@ -26,6 +30,22 @@ describe('SimpleSchemaVersioning', function () {
         });
 
         var AddressSchemaV2 = new SimpleSchema({
+          street: {
+            type: String,
+            max: 100
+          },
+          city: {
+            type: String,
+            max: 50
+          },
+          state: {
+            type: String,
+            regEx: /^A[LKSZRAEP]|C[AOT]|D[EC]|F[LM]|G[AU]|HI|I[ADLN]|K[SY]|LA|M[ADEHINOPST]|N[CDEHJMVY]|O[HKR]|P[ARW]|RI|S[CD]|T[NX]|UT|V[AIT]|W[AIVY]$/
+          },
+          zip: {
+            type: String,
+            regEx: /^[0-9]{5}$/
+          },
           floor: {
             type: Number,
             max: 100,
@@ -43,16 +63,10 @@ describe('SimpleSchemaVersioning', function () {
         var ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
 
         expect(ret).toEqual({
-          "up": [{"$or": [{"floor": {"$exists": false}}, {"apartmentNumber": {"$exists": false}}]}, {
+          "migrate": [{"$or": [{"floor": {"$exists": false}}, {"apartmentNumber": {"$exists": false}}]}, {
             "$set": {
               "floor": 1,
               "apartmentNumber": 1
-            }
-          }],
-          "down": [{"$or": [{"floor": {"$exists": true}}, {"apartmentNumber": {"$exists": true}}]}, {
-            "$unset": {
-              "floor": "",
-              "apartmentNumber": ""
             }
           }],
           "backup": [{"$or": [{"floor": {"$exists": true}}, {"apartmentNumber": {"$exists": true}}]}, {
@@ -102,13 +116,9 @@ describe('SimpleSchemaVersioning', function () {
         var ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
 
         expect(ret).toEqual({
-          "up": [{"$or": [{"zip": {"$exists": true}}, {"state": {"$exists": true}}]}, {
+          "migrate": [{"$or": [{"zip": {"$exists": true}}, {"state": {"$exists": true}}]}, {
             "$set": {},
             "$unset": {"zip": "", "state": ""}
-          }],
-          "down": [{"$or": [], "_id": "backedUpIds"}, {
-            "$unset": {},
-            "$set": {"zip": "backedUpValue", "state": "backedUpValue"}
           }],
           "backup": [{"$or": [{"zip": {"$exists": true}}, {"state": {"$exists": true}}]}, {
             "fields": {
@@ -156,13 +166,9 @@ describe('SimpleSchemaVersioning', function () {
         var ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
 
         expect(ret).toEqual({
-            "up": [{"$or": [{"zip": {"$exists": true}}, {"state": {"$exists": true}}]}, {
+            "migrate": [{"$or": [{"zip": {"$exists": true}}, {"state": {"$exists": true}}]}, {
               "$set": {},
               "$rename": {"zip": "zipcode", "state": "state_us"}
-            }],
-            "down": [{"$or": [{"zipcode": {"$exists": true}}, {"state_us": {"$exists": true}}]}, {
-              "$unset": {},
-              "$rename": {"zipcode": "zip", "state_us": "state"}
             }],
             "backup": [{"$or": [{"zip": {"$exists": true}}, {"state": {"$exists": true}}]}, {
               "fields": {
@@ -176,89 +182,5 @@ describe('SimpleSchemaVersioning', function () {
       });
     });
 
-  });
-
-  describe('determineVersion', function () {
-    it('should take an array of schemas and return a collection that is made of object ids and the latest schema ' +
-      'index number that matches the object', function () {
-
-      var collection = new Mongo.Collection();
-
-      var AddressSchema = new SimpleSchema({
-        street: {
-          type: String,
-          max: 100
-        },
-        city: {
-          type: String,
-          max: 50
-        },
-        state: {
-          type: String,
-          regEx: /^A[LKSZRAEP]|C[AOT]|D[EC]|F[LM]|G[AU]|HI|I[ADLN]|K[SY]|LA|M[ADEHINOPST]|N[CDEHJMVY]|O[HKR]|P[ARW]|RI|S[CD]|T[NX]|UT|V[AIT]|W[AIVY]$/
-        },
-        zip: {
-          type: String,
-          regEx: /^[0-9]{5}$/
-        }
-      });
-
-      var AddressSchemaV2 = new SimpleSchema({
-        country: {
-          type: String
-        },
-        state: {
-          optional: true
-        }
-      });
-
-      var AddressSchemaV3 = new SimpleSchema({
-        country: {
-          type: String,
-          optional: true
-        },
-        floor: {
-          type: Number
-        }
-      });
-
-      var id1 = collection.insert({
-        street: 'Sesame',
-        city: 'Volendam',
-        state: 'AL',
-        zip: '67676'
-      });
-
-      var id2 = collection.insert({
-        street: 'Sesame',
-        city: 'Volendam',
-        country: 'Holland',
-        zip: '67676'
-      });
-
-      var id3 = collection.insert({
-        street: 'Sesame',
-        city: 'Volendam',
-        zip: '67676',
-        floor: 1
-      });
-
-      var actual = SimpleSchemaVersioning.determineVersion([AddressSchema, AddressSchemaV2, AddressSchemaV3], collection);
-
-      expect(actual).toEqual([
-        {
-          _id: id1,
-          validSchemaVersion: 0
-        },
-        {
-          _id: id2,
-          validSchemaVersion: 1
-        },
-        {
-          _id: id3,
-          validSchemaVersion: 2
-        }
-      ]);
-    });
   });
 });

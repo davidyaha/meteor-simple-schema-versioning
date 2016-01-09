@@ -6,6 +6,10 @@ Package.describe({
   documentation: 'README.md'
 });
 
+Npm.depends({
+  "objectdiff": "1.1.0"
+});
+
 Package.onUse(function(api) {
   api.versionsFrom('1.2.0.2');
 
@@ -14,17 +18,20 @@ Package.onUse(function(api) {
 
   api.imply('aldeed:simple-schema');
 
-  api.addFiles('extend-simple-schema.js');
-  api.addFiles('SimpleSchemaVersioning.js');
+  api.addFiles('simple-schema-versioning.js');
 
   api.export('SimpleSchemaVersioning');
 });
 
 Package.onTest(function(api) {
-  api.use(['ecmascript', 'mongo']);
+  api.use(['ecmascript', 'mongo', 'underscore']);
   api.use('sanjo:jasmine@0.18.0');
 
   api.use('simple-schema-versioning');
 
-  api.addFiles('tests/integration/versioning-spec.js');
+  // TODO rewrite those
+  //api.addFiles('tests/integration/get-migration-plan-spec.js');
+  //api.addFiles('tests/integration/determine-version-spec.js');
+
+  api.addFiles('tests/integration/diff-spec.js');
 });
