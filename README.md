@@ -29,14 +29,14 @@ var AddressSchemaV2 = new SimpleSchema({
 });
 
 var actions = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
-```
-Will return
+
+// Will return
 {
     update: [{$or: [{city: {$exists: false}}]}, {$set: {city: "New York"}}],
     remove: [{$or: []}] // Running this could potentially remove all documents from collection
     find: [{$or: [{city: {$exists: false}}]}, {fields: {city: 0}}]
 }
-
+```
 So you could really just run these to migrate
 
 ```
