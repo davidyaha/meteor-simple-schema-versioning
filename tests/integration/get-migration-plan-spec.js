@@ -8,9 +8,9 @@ describe('SimpleSchemaVersioning', function () {
 
     describe('add fields', function () {
 
-      it('should take base schema and delta schema with an added field ' +
-        'and return a backup query, up update and down update', function () {
-        var AddressSchema = new SimpleSchema({
+      it('should take base schema and changed schema with an added field ' +
+        'and return update, remove and find arguments', function () {
+        let AddressSchema = new SimpleSchema({
           street: {
             type: String,
             max: 100
@@ -29,7 +29,7 @@ describe('SimpleSchemaVersioning', function () {
           }
         });
 
-        var AddressSchemaV2 = new SimpleSchema({
+        let AddressSchemaV2 = new SimpleSchema({
           street: {
             type: String,
             max: 100
@@ -60,22 +60,20 @@ describe('SimpleSchemaVersioning', function () {
           }
         });
 
-        var ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
+        let ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
 
-        expect(ret).toEqual({
-          "migrate": [{"$or": [{"floor": {"$exists": false}}, {"apartmentNumber": {"$exists": false}}]}, {
-            "$set": {
-              "floor": 1,
-              "apartmentNumber": 1
-            }
+        let expected = {
+          "update": [{"$or": [{"apartmentNumber": {"$exists": false}}]}, {
+            "$set": {"apartmentNumber": 1},
+            "$unset": {}
           }],
-          "backup": [{"$or": [{"floor": {"$exists": true}}, {"apartmentNumber": {"$exists": true}}]}, {
-            "fields": {
-              "floor": 1,
-              "apartmentNumber": 1
-            }
-          }]
-        });
+          "remove": [{}, {}],
+          "find": [{"$or": [{"apartmentNumber": {"$exists": false}}]}, {"fields": {"apartmentNumber": 0}}],
+          "errors": []
+        };
+
+
+        expect(ret).toEqual(expected);
 
       });
 
@@ -83,9 +81,9 @@ describe('SimpleSchemaVersioning', function () {
 
     describe('remove fields', function () {
 
-      it('should take base schema and delta schema with a removed field ' +
-        'and return a backup query, up update and down update', function () {
-        var AddressSchema = new SimpleSchema({
+      it('should take base schema and a changed schema with a removed field ' +
+        'and return uoadte, remove and find arguments', function () {
+        let AddressSchema = new SimpleSchema({
           street: {
             type: String,
             max: 100
@@ -104,38 +102,36 @@ describe('SimpleSchemaVersioning', function () {
           }
         });
 
-        var AddressSchemaV2 = new SimpleSchema({
-          zip: {
-            removed: true
+        let AddressSchemaV2 = new SimpleSchema({
+          street: {
+            type: String,
+            max: 100
           },
-          state: {
-            removed: true
+          city: {
+            type: String,
+            max: 50
           }
         });
 
-        var ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
+        let ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
 
-        expect(ret).toEqual({
-          "migrate": [{"$or": [{"zip": {"$exists": true}}, {"state": {"$exists": true}}]}, {
-            "$set": {},
-            "$unset": {"zip": "", "state": ""}
-          }],
-          "backup": [{"$or": [{"zip": {"$exists": true}}, {"state": {"$exists": true}}]}, {
-            "fields": {
-              "zip": 1,
-              "state": 1
-            }
-          }]
-        });
+        let expected = {
+          "update": [{"$or": [{"zip": {"$exists": true}}]}, {"$set": {}, "$unset": {"zip": ""}}],
+          "remove": [{}, {}],
+          "find": [{"$or": [{"zip": {"$exists": true}}]}, {"fields": {"zip": 1}}],
+          "errors": []
+        };
+
+        expect(ret).toEqual(expected);
 
       });
     });
 
     describe('rename fields', function () {
 
-      it('should take base schema and delta schema with a renamed field ' +
-        'and return a backup query, up update and down update', function () {
-        var AddressSchema = new SimpleSchema({
+      it('should take base schema and changed schema with a renamed field ' +
+        'and return an object with errors array that states the error in creating a rename migration', function () {
+        let AddressSchema = new SimpleSchema({
           street: {
             type: String,
             max: 100
@@ -154,30 +150,41 @@ describe('SimpleSchemaVersioning', function () {
           }
         });
 
-        var AddressSchemaV2 = new SimpleSchema({
-          zipcode: {
-            renamed: 'zip'
+        let AddressSchemaV2 = new SimpleSchema({
+          street: {
+            type: String,
+            max: 100
           },
-          state_us: {
-            renamed: 'state'
+          city: {
+            type: String,
+            max: 50
+          },
+          state: {
+            type: String,
+            regEx: /^A[LKSZRAEP]|C[AOT]|D[EC]|F[LM]|G[AU]|HI|I[ADLN]|K[SY]|LA|M[ADEHINOPST]|N[CDEHJMVY]|O[HKR]|P[ARW]|RI|S[CD]|T[NX]|UT|V[AIT]|W[AIVY]$/
+          },
+          zipcode: {
+            type: String,
+            regEx: /^[0-9]{5}$/
           }
         });
 
-        var ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
+        let ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
 
-        expect(ret).toEqual({
-            "migrate": [{"$or": [{"zip": {"$exists": true}}, {"state": {"$exists": true}}]}, {
-              "$set": {},
-              "$rename": {"zip": "zipcode", "state": "state_us"}
-            }],
-            "backup": [{"$or": [{"zip": {"$exists": true}}, {"state": {"$exists": true}}]}, {
-              "fields": {
-                "zip": 1,
-                "state": 1
-              }
+        let expected = {
+            "update": [{"$or": []}, {"$set": {}, "$unset": {}}],
+            "remove": [{}, {}],
+            "find": [{"$or": []}, {"fields": {}}],
+            "errors": [{
+              "error": 500,
+              "reason": "Cannot determine value",
+              "details": "The added field 'zipcode' does not have a default value",
+              "message": "Cannot determine value [500]",
+              "errorType": "Meteor.Error"
             }]
-          }
-        );
+          };
+
+        expect(ret).toEqual(expected);
 
       });
     });

@@ -30,7 +30,7 @@ Package.onTest(function(api) {
   api.use('simple-schema-versioning');
 
   // TODO rewrite those
-  //api.addFiles('tests/integration/get-migration-plan-spec.js');
+  api.addFiles('tests/integration/get-migration-plan-spec.js');
   //api.addFiles('tests/integration/determine-version-spec.js');
 
   api.addFiles('tests/integration/diff-spec.js');

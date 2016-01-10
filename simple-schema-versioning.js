@@ -9,7 +9,7 @@ SimpleSchemaVersioning = class SimpleSchemaVersioning {
     let diff = SimpleSchemaVersioning.diff(firstSchema, secondSchema);
 
     if (diff) {
-      traverseDiff(diff);
+      return traverseDiff(diff);
     }
   }
 
@@ -78,14 +78,14 @@ SimpleSchemaVersioning = class SimpleSchemaVersioning {
 
 function traverseDiff(diff, level = 0, trail = []) {
   var actions = {
-    update: [{$or: []}, {$set: {}}],
+    update: [{$or: []}, {$set: {}, $unset: {}}],
     remove: [{$or: []}],
     find: [{$or: []}, {fields: {}}]
   };
 
   if (diff['changed'] === 'object change') {
     _.each(diff['value'], (innerDiff, fieldName) => {
-      let innerMigrations = traverseDiff(innerDiff, level + 1, trail.push(fieldName));
+      let innerMigrations = traverseDiff(innerDiff, level + 1, [...trail, fieldName]);
       actions = mergeMigrationPlans(actions, innerMigrations);
     })
   }
@@ -126,7 +126,7 @@ function handleAddedField([fieldName], field, actions) {
   let [backupSelector, backupProjection] = actions.find;
 
   if (!field || !field.defaultValue)
-    emitError('Cannot determine value', 'The added field \'' + fieldName + '\' does not have a default value');
+    emitError('Cannot determine value', `The added field '${fieldName}' does not have a default value`, actions);
   else {
     upSelector.$or.push({[fieldName]: {$exists: false}});
     upModifier.$set[fieldName] = field.defaultValue;
@@ -220,18 +220,28 @@ function mergeMigrationPlans() {
           _.extend(migrationPlan.find[0], currentMigrationPlan.find[0]);
           _.extend(migrationPlan.find[1], currentMigrationPlan.find[1]);
         }
+
+        if (!!currentMigrationPlan.errors) {
+          migrationPlan.errors.push(...currentMigrationPlan.errors);
+        }
       }
 
       return migrationPlan;
     },
     // initial migration plan
-    {update: [{}, {}], remove: [{}, {}], find: [{}, {}]}
+    {update: [{}, {}], remove: [{}, {}], find: [{}, {}], errors: []}
   )
 }
 
-function emitError(desc, details) {
-  // TODO add config check about throwing errors
-  throw new Meteor.Error(500, desc, details);
+function emitError(desc, details, actions) {
+  let error = new Meteor.Error(500, desc, details);
+
+  if (actions) {
+    if (!actions.errors) actions.errors = [];
+    actions.errors.push(error);
+  } else {
+    throw error;
+  }
 }
 
 function unwrapSS(simpleSchema) {
