@@ -63,15 +63,81 @@ describe('SimpleSchemaVersioning', function () {
         let ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
 
         let expected = {
-          "update": [{"$or": [{"apartmentNumber": {"$exists": false}}]}, {
-            "$set": {"apartmentNumber": 1},
-            "$unset": {}
+          "update": [{"$or": [{"floor": {"$exists": false}}, {"apartmentNumber": {"$exists": false}}]}, {
+            "$set": {
+              "floor": 1,
+              "apartmentNumber": 1
+            }
           }],
-          "remove": [{}, {}],
-          "find": [{"$or": [{"apartmentNumber": {"$exists": false}}]}, {"fields": {"apartmentNumber": 0}}],
-          "errors": []
+          "find": [{"$or": [{"floor": {"$exists": false}}, {"apartmentNumber": {"$exists": false}}]}, {
+            "fields": {
+              "floor": 0,
+              "apartmentNumber": 0
+            }
+          }]
         };
 
+        expect(ret).toEqual(expected);
+
+      });
+
+      it('should take base schema and changed schema with an added field ' +
+        'with no defaultValue and return errors array', function () {
+        let AddressSchema = new SimpleSchema({
+          street: {
+            type: String,
+            max: 100
+          },
+          city: {
+            type: String,
+            max: 50
+          },
+          state: {
+            type: String,
+            regEx: /^A[LKSZRAEP]|C[AOT]|D[EC]|F[LM]|G[AU]|HI|I[ADLN]|K[SY]|LA|M[ADEHINOPST]|N[CDEHJMVY]|O[HKR]|P[ARW]|RI|S[CD]|T[NX]|UT|V[AIT]|W[AIVY]$/
+          },
+          zip: {
+            type: String,
+            regEx: /^[0-9]{5}$/
+          }
+        });
+
+        let AddressSchemaV2 = new SimpleSchema({
+          street: {
+            type: String,
+            max: 100
+          },
+          city: {
+            type: String,
+            max: 50
+          },
+          state: {
+            type: String,
+            regEx: /^A[LKSZRAEP]|C[AOT]|D[EC]|F[LM]|G[AU]|HI|I[ADLN]|K[SY]|LA|M[ADEHINOPST]|N[CDEHJMVY]|O[HKR]|P[ARW]|RI|S[CD]|T[NX]|UT|V[AIT]|W[AIVY]$/
+          },
+          zip: {
+            type: String,
+            regEx: /^[0-9]{5}$/
+          },
+          floor: {
+            type: Number,
+            max: 100,
+            min: 0
+          },
+          apartmentNumber: {
+            type: Number,
+            max: 999,
+            min: 1
+          }
+        });
+
+        let ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
+
+        let expected = {
+          "errors": [
+            new Meteor.Error(500, "Cannot determine value", "The added field 'floor' does not have a default value"),
+            new Meteor.Error(500, "Cannot determine value", "The added field 'apartmentNumber' does not have a default value")]
+        };
 
         expect(ret).toEqual(expected);
 
@@ -82,7 +148,7 @@ describe('SimpleSchemaVersioning', function () {
     describe('remove fields', function () {
 
       it('should take base schema and a changed schema with a removed field ' +
-        'and return uoadte, remove and find arguments', function () {
+        'and return update, remove and find arguments', function () {
         let AddressSchema = new SimpleSchema({
           street: {
             type: String,
@@ -116,10 +182,18 @@ describe('SimpleSchemaVersioning', function () {
         let ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
 
         let expected = {
-          "update": [{"$or": [{"zip": {"$exists": true}}]}, {"$set": {}, "$unset": {"zip": ""}}],
-          "remove": [{}, {}],
-          "find": [{"$or": [{"zip": {"$exists": true}}]}, {"fields": {"zip": 1}}],
-          "errors": []
+          "update": [{"$or": [{"state": {"$exists": true}}, {"zip": {"$exists": true}}]}, {
+            "$unset": {
+              "state": "",
+              "zip": ""
+            }
+          }],
+          "find": [{"$or": [{"state": {"$exists": true}}, {"zip": {"$exists": true}}]}, {
+            "fields": {
+              "state": 1,
+              "zip": 1
+            }
+          }]
         };
 
         expect(ret).toEqual(expected);
@@ -172,17 +246,75 @@ describe('SimpleSchemaVersioning', function () {
         let ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
 
         let expected = {
-            "update": [{"$or": []}, {"$set": {}, "$unset": {}}],
-            "remove": [{}, {}],
-            "find": [{"$or": []}, {"fields": {}}],
-            "errors": [{
-              "error": 500,
-              "reason": "Cannot determine value",
-              "details": "The added field 'zipcode' does not have a default value",
-              "message": "Cannot determine value [500]",
-              "errorType": "Meteor.Error"
-            }]
-          };
+          "update": [{"$or": [{"zip": {"$exists": true}}]}, {"$unset": {"zip": ""}}],
+          "find": [{"$or": [{"zip": {"$exists": true}}]}, {"fields": {"zip": 1}}],
+          "errors": [new Meteor.Error(500, "Cannot determine value", "The added field 'zipcode' does not have a default value")]
+        }
+
+        expect(ret).toEqual(expected);
+
+      });
+    });
+
+    describe('merge migration plan', function () {
+
+      it('should take base schema and a changed schema with a removed field and added field' +
+        'and return update, remove and find arguments', function () {
+        let AddressSchema = new SimpleSchema({
+          street: {
+            type: String,
+            max: 100
+          },
+          city: {
+            type: String,
+            max: 50
+          },
+          state: {
+            type: String,
+            regEx: /^A[LKSZRAEP]|C[AOT]|D[EC]|F[LM]|G[AU]|HI|I[ADLN]|K[SY]|LA|M[ADEHINOPST]|N[CDEHJMVY]|O[HKR]|P[ARW]|RI|S[CD]|T[NX]|UT|V[AIT]|W[AIVY]$/
+          },
+          zip: {
+            type: String,
+            regEx: /^[0-9]{5}$/
+          }
+        });
+
+        let AddressSchemaV2 = new SimpleSchema({
+          street: {
+            type: String,
+            max: 100
+          },
+          city: {
+            type: String,
+            max: 50
+          },
+          floor: {
+            type: Number,
+            min: 0,
+            max: 120,
+            defaultValue: 0
+          }
+        });
+
+        let ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
+
+        console.log(JSON.stringify(ret));
+
+        let expected = {
+          "update": [{"$or": [{"state": {"$exists": true}}, {"zip": {"$exists": true}}, {"floor": {"$exists": false}}]}, {
+            "$unset": {
+              "state": "",
+              "zip": ""
+            }, "$set": {"floor": 0}
+          }],
+          "find": [{"$or": [{"state": {"$exists": true}}, {"zip": {"$exists": true}}, {"floor": {"$exists": false}}]}, {
+            "fields": {
+              "state": 1,
+              "zip": 1,
+              "floor": 0
+            }
+          }]
+        };
 
         expect(ret).toEqual(expected);
 

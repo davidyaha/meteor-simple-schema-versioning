@@ -74,19 +74,19 @@ SimpleSchemaVersioning = class SimpleSchemaVersioning {
       return {_id: docId, validSchemaVersion: validIndex}
     });
   }
+
+  static mergeObject(first, second) {
+    return mergeObject(first, second);
+  }
 };
 
 function traverseDiff(diff, level = 0, trail = []) {
-  var actions = {
-    update: [{$or: []}, {$set: {}, $unset: {}}],
-    remove: [{$or: []}],
-    find: [{$or: []}, {fields: {}}]
-  };
+  var actions = {};
 
   if (diff['changed'] === 'object change') {
     _.each(diff['value'], (innerDiff, fieldName) => {
       let innerMigrations = traverseDiff(innerDiff, level + 1, [...trail, fieldName]);
-      actions = mergeMigrationPlans(actions, innerMigrations);
+      mergeMigrationPlans(actions, innerMigrations);
     })
   }
 
@@ -122,12 +122,21 @@ function traverseDiff(diff, level = 0, trail = []) {
 }
 
 function handleAddedField([fieldName], field, actions) {
-  let [upSelector, upModifier] = actions.update;
-  let [backupSelector, backupProjection] = actions.find;
 
-  if (!field || !field.defaultValue)
+  if (!field || _.isUndefined(field.defaultValue))
     emitError('Cannot determine value', `The added field '${fieldName}' does not have a default value`, actions);
   else {
+    if (_.isUndefined(actions.update)) actions.update = [{}, {}];
+    if (_.isUndefined(actions.find)) actions.find = [{}, {}];
+
+    mergeObject(actions.update[0], {$or: []});
+    mergeObject(actions.update[1], {$set: {}});
+    mergeObject(actions.find[0], {$or: []});
+    mergeObject(actions.find[1], {fields: {}});
+
+    let [upSelector, upModifier] = actions.update;
+    let [backupSelector, backupProjection] = actions.find;
+
     upSelector.$or.push({[fieldName]: {$exists: false}});
     upModifier.$set[fieldName] = field.defaultValue;
 
@@ -137,6 +146,14 @@ function handleAddedField([fieldName], field, actions) {
 }
 
 function handleRemovedField([fieldName], field, actions) {
+  if (_.isUndefined(actions.update)) actions.update = [{}, {}];
+  if (_.isUndefined(actions.find)) actions.find = [{}, {}];
+
+  mergeObject(actions.update[0], {$or: []});
+  mergeObject(actions.update[1], {$unset: {}});
+  mergeObject(actions.find[0], {$or: []});
+  mergeObject(actions.find[1], {fields: {}});
+
   let [upSelector, upModifier] = actions.update;
   let [backupSelector, backupProjection] = actions.find;
 
@@ -148,44 +165,38 @@ function handleRemovedField([fieldName], field, actions) {
   backupProjection.fields[fieldName] = 1;
 }
 
-function handleAddedRestriction(trail, restriction, actions) {
+function handleAddedRestriction([fieldName, ...trail], restriction, actions) {
   let [upSelector, upModifier] = actions.update;
   let [backupSelector, backupProjection] = actions.find;
 
-  // TODO handle all schema properties
-
-  // TODO handle optional true removal
+  // TODO handle optional false addition
 
   // TODO handle addition of min/max/count/exclusive restriction
-
-  // TODO handle turn on of decimal flag
 
   // TODO handle addition of regex -- There is a bug on the objectDiff lib that does not recognise regex changes
 
   // TODO handle addition of unique flag
 }
 
-function handleRemovedRestriction(trail, restriction, actions) {
+function handleRemovedRestriction([fieldName, ...trail], restriction, actions) {
   let [upSelector, upModifier] = actions.update;
   let [backupSelector, backupProjection] = actions.find;
-
-  // TODO handle all schema properties
 
   // TODO handle optional true removal
   if (restriction["optional"]) {
 
   }
 
+  // TODO handle turn off of decimal flag
+
   // TODO handle turn off trim
 
   // TODO handle removed index
 }
 
-function handleChangedRestriction(trail, fromValue, toValue, actions) {
+function handleChangedRestriction([fieldName, ...trail], fromValue, toValue, actions) {
   let [upSelector, upModifier] = actions.update;
   let [backupSelector, backupProjection] = actions.find;
-
-  // TODO handle all schema properties
 
   // TODO handle type casts
 
@@ -193,44 +204,68 @@ function handleChangedRestriction(trail, fromValue, toValue, actions) {
 
   // TODO handle change of min/max/count/exclusive restriction
 
-  // TODO handle turn on of decimal flag
+  // TODO handle turn off of decimal flag
 
   // TODO handle rebuild index
 }
 
-function mergeMigrationPlans() {
-  // TODO remove empty modifiers and selectors
+function mergeMigrationPlans(firstPlan, secondPlan) {
+  if (_.isUndefined(firstPlan)) {
+    return secondPlan;
+  }
 
-  let args = Array.prototype.slice.apply(arguments);
-  return args.reduce(
-    (migrationPlan, currentMigrationPlan) => {
+  if (firstPlan.update || secondPlan.update) {
+    let [firstUpdateSelector, firstUpdateModifier] = firstPlan.update || [{}, {}];
+    let [secondUpdateSelector, secondUpdateModifier] = secondPlan.update || [{}, {}];
 
-      if (!!currentMigrationPlan) {
-        if (!!currentMigrationPlan.update && currentMigrationPlan.update.length === 2) {
-          _.extend(migrationPlan.update[0], currentMigrationPlan.update[0]);
-          _.extend(migrationPlan.update[1], currentMigrationPlan.update[1]);
-        }
+    mergeObject(firstUpdateSelector, secondUpdateSelector);
+    mergeObject(firstUpdateModifier, secondUpdateModifier);
 
-        if (!!currentMigrationPlan.remove && currentMigrationPlan.remove.length === 2) {
-          _.extend(migrationPlan.remove[0], currentMigrationPlan.remove[0]);
-          _.extend(migrationPlan.remove[1], currentMigrationPlan.remove[1]);
-        }
+    firstPlan.update = [firstUpdateSelector, firstUpdateModifier];
+  }
 
-        if (!!currentMigrationPlan.find && currentMigrationPlan.find.length === 2) {
-          _.extend(migrationPlan.find[0], currentMigrationPlan.find[0]);
-          _.extend(migrationPlan.find[1], currentMigrationPlan.find[1]);
-        }
+  if (firstPlan.remove || secondPlan.remove) {
+    let [firstRemoveSelector, firstRemoveModifier] = firstPlan.remove || [{}, {}];
+    let [secondRemoveeSelector, secondRemoveModifier] = secondPlan.remove || [{}, {}];
 
-        if (!!currentMigrationPlan.errors) {
-          migrationPlan.errors.push(...currentMigrationPlan.errors);
-        }
+    mergeObject(firstRemoveSelector, secondRemoveeSelector);
+    mergeObject(firstRemoveModifier, secondRemoveModifier);
+
+    firstPlan.remove = [firstRemoveSelector, firstRemoveModifier];
+  }
+
+  if (firstPlan.find || secondPlan.find) {
+    let [firstFindSelector, firstFindProjection] = firstPlan.find || [{}, {}];
+    let [secondFindSelector, secondFindProjection] = secondPlan.find || [{}, {}];
+
+    mergeObject(firstFindSelector, secondFindSelector);
+    mergeObject(firstFindProjection, secondFindProjection);
+
+    firstPlan.find = [firstFindSelector, firstFindProjection];
+  }
+
+  if (firstPlan.errors || secondPlan.errors)
+    firstPlan.errors = _.union(firstPlan.errors, secondPlan.errors);
+
+  return firstPlan;
+}
+
+function mergeObject(first, second) {
+  _.each(second, (secondVal, key) => {
+    let firstVal = first[key];
+
+    if (!_.isUndefined(firstVal)) {
+      if (_.isArray(firstVal)) {
+        return first[key] = _.union(firstVal, secondVal);
+      } else if (_.isObject(firstVal)) {
+        return first[key] = mergeObject(firstVal, secondVal);
       }
+    }
 
-      return migrationPlan;
-    },
-    // initial migration plan
-    {update: [{}, {}], remove: [{}, {}], find: [{}, {}], errors: []}
-  )
+    first[key] = secondVal;
+  });
+
+  return first;
 }
 
 function emitError(desc, details, actions) {
