@@ -298,8 +298,6 @@ describe('SimpleSchemaVersioning', function () {
 
         let ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
 
-        console.log(JSON.stringify(ret));
-
         let expected = {
           "update": [{"$or": [{"state": {"$exists": true}}, {"zip": {"$exists": true}}, {"floor": {"$exists": false}}]}, {
             "$unset": {
@@ -318,6 +316,34 @@ describe('SimpleSchemaVersioning', function () {
 
         expect(ret).toEqual(expected);
 
+      });
+    });
+
+    describe('change restrictions', function () {
+      it('should return empty object', function () {
+        let SchemaV1 = new SimpleSchema({
+          user: {index: true},
+          permission: {},
+          resource: {index: true}
+        });
+
+        let SchemaV2 = new SimpleSchema({
+          user: {
+            type: String,
+            index: true
+          },
+          permission: {
+            type: Number
+          },
+          resource: {
+            type: String,
+            index: true
+          }
+        });
+
+        let actual = SimpleSchemaVersioning.getMigrationPlan(SchemaV1, SchemaV2)
+
+        console.log(actual);
       });
     });
 
