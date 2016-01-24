@@ -143,6 +143,59 @@ describe('SimpleSchemaVersioning', function () {
 
       });
 
+      it('should take base schema and changed schema with an added field ' +
+        'with no defaultValue and optional true field and return empty object', function () {
+        let AddressSchema = new SimpleSchema({
+          street: {
+            type: String,
+            max: 100
+          },
+          city: {
+            type: String,
+            max: 50
+          },
+          state: {
+            type: String,
+            regEx: /^A[LKSZRAEP]|C[AOT]|D[EC]|F[LM]|G[AU]|HI|I[ADLN]|K[SY]|LA|M[ADEHINOPST]|N[CDEHJMVY]|O[HKR]|P[ARW]|RI|S[CD]|T[NX]|UT|V[AIT]|W[AIVY]$/
+          },
+          zip: {
+            type: String,
+            regEx: /^[0-9]{5}$/
+          }
+        });
+
+        let AddressSchemaV2 = new SimpleSchema({
+          street: {
+            type: String,
+            max: 100
+          },
+          city: {
+            type: String,
+            max: 50
+          },
+          state: {
+            type: String,
+            regEx: /^A[LKSZRAEP]|C[AOT]|D[EC]|F[LM]|G[AU]|HI|I[ADLN]|K[SY]|LA|M[ADEHINOPST]|N[CDEHJMVY]|O[HKR]|P[ARW]|RI|S[CD]|T[NX]|UT|V[AIT]|W[AIVY]$/
+          },
+          zip: {
+            type: String,
+            regEx: /^[0-9]{5}$/
+          },
+          floor: {
+            type: Number,
+            max: 100,
+            min: 0,
+            optional: true
+          }
+        });
+
+        let ret = SimpleSchemaVersioning.getMigrationPlan(AddressSchema, AddressSchemaV2);
+
+        let expected = {};
+
+        expect(ret).toEqual(expected);
+
+      });
     });
 
     describe('remove fields', function () {
@@ -320,30 +373,51 @@ describe('SimpleSchemaVersioning', function () {
     });
 
     describe('change restrictions', function () {
-      it('should return empty object', function () {
+      it('should not detect change in restrictions', function () {
         let SchemaV1 = new SimpleSchema({
-          user: {index: true},
-          permission: {},
-          resource: {index: true}
+          street: {
+            type: String,
+            max: 100
+          },
+          city: {
+            type: String,
+            max: 50
+          },
+          state: {
+            type: String,
+            regEx: /^A[LKSZRAEP]|C[AOT]|D[EC]|F[LM]|G[AU]|HI|I[ADLN]|K[SY]|LA|M[ADEHINOPST]|N[CDEHJMVY]|O[HKR]|P[ARW]|RI|S[CD]|T[NX]|UT|V[AIT]|W[AIVY]$/
+          },
+          zip: {
+            type: String,
+            regEx: /^[0-9]{5}$/
+          }
         });
 
         let SchemaV2 = new SimpleSchema({
-          user: {
+          street: {
             type: String,
-            index: true
+            max: 100
           },
-          permission: {
-            type: Number
-          },
-          resource: {
+          city: {
             type: String,
-            index: true
+            max: 50
+          },
+          state: {
+            type: String,
+            regEx: /^A[LKSZRAEP]|C[AOT]|D[EC]|F[LM]|G[AU]|HI|I[ADLN]|K[SY]|LA|M[ADEHINOPST]|N[CDEHJMVY]|O[HKR]|P[ARW]|RI|S[CD]|T[NX]|UT|V[AIT]|W[AIVY]$/
+          },
+          zip: {
+            type: Number,
+            max: 99999,
+            min: 0
           }
         });
 
         let actual = SimpleSchemaVersioning.getMigrationPlan(SchemaV1, SchemaV2)
 
-        console.log(actual);
+        let expected = {};
+
+        expect(actual).toEqual(expected);
       });
     });
 

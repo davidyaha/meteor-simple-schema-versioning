@@ -123,9 +123,12 @@ function traverseDiff(diff, level = 0, trail = []) {
 
 function handleAddedField([fieldName], field, actions) {
 
-  if (!field || _.isUndefined(field.defaultValue))
-    emitError('Cannot determine value', `The added field '${fieldName}' does not have a default value`, actions);
-  else {
+  if (!field || (_.isUndefined(field.defaultValue) && !field.optional))
+    emitError('Cannot determine value', `The added field '${fieldName}' does not have a default value and is not optional`, actions);
+  else if (_.isUndefined(field.defaultValue) && _.isFunction(field.optional)) {
+    emitError('Cannot determine value', `The added field '${fieldName}' does not have a default value and optional` +
+      'cannot be resolved because it is a contextual function', actions);
+  } else if (!_.isUndefined(field.defaultValue)) {
     if (_.isUndefined(actions.update)) actions.update = [{}, {}];
     if (_.isUndefined(actions.find)) actions.find = [{}, {}];
 
