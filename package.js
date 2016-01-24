@@ -1,6 +1,6 @@
 Package.describe({
   name: 'davidyaha:simple-schema-versioning',
-  version: '0.0.2',
+  version: '0.0.3',
   summary: 'Versioning tool for aldeed:simple-schema',
   git: 'https://github.com/davidyaha/meteor-simple-schema-versioning.git',
   documentation: 'README.md'
@@ -14,13 +14,13 @@ Package.onUse(function(api) {
   api.versionsFrom('1.2.0.2');
 
   // TODO PR updates for underscore official package
-  api.use(['ecmascript', 'mongo', 'check', 'davidyaha:official-underscore@1.8.3', 'aldeed:collection2@2.8.0']);
+  api.use(['ecmascript', 'mongo', 'check', 'davidyaha:official-underscore@1.8.3', 'aldeed:collection2@2.8.0'], 'server');
 
-  api.imply('aldeed:collection2');
+  api.imply('aldeed:collection2', 'server');
 
-  api.addFiles('simple-schema-versioning.js');
+  api.addFiles('simple-schema-versioning.js', 'server');
 
-  api.export('SimpleSchemaVersioning');
+  api.export('SimpleSchemaVersioning', 'server');
 });
 
 Package.onTest(function(api) {
