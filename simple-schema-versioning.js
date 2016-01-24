@@ -125,7 +125,7 @@ function handleAddedField([fieldName], field, actions) {
 
   if (!field || (_.isUndefined(field.defaultValue) && !field.optional))
     emitError('Cannot determine value', `The added field '${fieldName}' does not have a default value and is not optional`, actions);
-  else if (_.isUndefined(field.defaultValue) && _.isFunction(field.optional)) {
+  else if (_.isUndefined(field.defaultValue) && field.optional !== true) {
     emitError('Cannot determine value', `The added field '${fieldName}' does not have a default value and optional` +
       'cannot be resolved because it is a contextual function', actions);
   } else if (!_.isUndefined(field.defaultValue)) {
@@ -168,48 +168,76 @@ function handleRemovedField([fieldName], field, actions) {
   backupProjection.fields[fieldName] = 1;
 }
 
-function handleAddedRestriction([fieldName, ...trail], restriction, actions) {
-  let [upSelector, upModifier] = actions.update;
-  let [backupSelector, backupProjection] = actions.find;
+function handleAddedRestriction([fieldName, ...trail], restrictionValue, actions) {
+  let restrictionType = _.last(trail);
 
-  // TODO handle optional false addition
+  // handle optional false addition
+  if (restrictionType === 'optional' && restrictionValue === false )
+    emitError('Non optional field', `Field '${fieldName}' is no longer optional`, actions);
 
-  // TODO handle addition of min/max/count/exclusive restriction
+  // handle addition of min/max/count/exclusive restriction
+  else if (_.indexOf(['min', 'max', 'minCount', 'maxCount', 'minExclusive', 'maxExclusive'], restrictionType) !== -1)
+    emitError('Values may not match', `Field '${fieldName}' has new restriction '${restrictionType}' with value '${restrictionValue}'`, actions);
 
-  // TODO handle addition of regex -- There is a bug on the objectDiff lib that does not recognise regex changes
+  // handle addition of regex
+  else if (restrictionType === 'regEx')
+    emitError('Values may not match', `Field '${fieldName}' has new regular expression restriction`, actions);
 
-  // TODO handle addition of unique flag
+  // handle addition of unique flag
+  else if (restrictionType === 'unique' && restrictionValue === true )
+    emitError('May hold duplicates',  `Field '${fieldName}' was turned unique, some of the collection values may be duplicates`, actions);
+
+  // handle addition to allowed values
+  else if (restrictionType === 'allowedValues')
+    emitError('Allowed Values Added', `Field '${fieldName}' has allowedValues restriction added`, actions);
 }
 
-function handleRemovedRestriction([fieldName, ...trail], restriction, actions) {
-  let [upSelector, upModifier] = actions.update;
-  let [backupSelector, backupProjection] = actions.find;
+function handleRemovedRestriction([fieldName, ...trail], restrictionValue, actions) {
+  let restrictionType = _.last(trail);
 
-  // TODO handle optional true removal
-  if (restriction["optional"]) {
+  // handle optional true removal
+  if (restrictionType === 'optional' && restrictionValue)
+    emitError('Non optional field', `Field '${fieldName}' is no longer optional`, actions);
 
-  }
+  // handle turn off of decimal flag
+  else if (restrictionType === 'decimal' && restrictionValue)
+    emitError('Changed to non decimal', `Field '${fieldName}' does not support decimal any longer`, actions);
 
-  // TODO handle turn off of decimal flag
+  // handle turn on trim
+  else if (restrictionType === 'trim' && restrictionValue === false)
+    emitError('Trim turned on', `Field '${fieldName}' will trim leading and trailing spaces`, actions);
 
-  // TODO handle turn off trim
+  // handle removed index
+  else if (restrictionType === 'index')
+    emitError('Index was removed', `Index was removed from field '${fieldName}'`, actions);
 
-  // TODO handle removed index
+  // handle addition to allowed values
+  else if (restrictionType !== 'allowedValues' && _.indexOf(trail, 'allowedValues') !== -1)
+    emitError('Allowed Values Changed', `Field '${fieldName}' allowedValues restriction have changed`, actions);
 }
 
 function handleChangedRestriction([fieldName, ...trail], fromValue, toValue, actions) {
-  let [upSelector, upModifier] = actions.update;
-  let [backupSelector, backupProjection] = actions.find;
+  let restrictionType = _.last(trail);
 
-  // TODO handle type casts
+  // handle type casts
+  if (restrictionType === 'type')
+    emitError('Type Cast Needed', `Field '${fieldName}' has changed types from '${fromValue}' to '${toValue}'`, actions);
 
-  // TODO handle optional change
+  // handle optional change
+  else if (restrictionType === 'optinal' && toValue === false)
+    emitError('Non optional field', `Field '${fieldName}' is no longer optional`, actions);
 
-  // TODO handle change of min/max/count/exclusive restriction
+  // handle change of min/max/count/exclusive restriction
+  else if (_.indexOf(['min', 'max', 'minCount', 'maxCount', 'minExclusive', 'maxExclusive'], restrictionType) !== -1)
+    emitError('Values may not match', `Field '${fieldName}' has changed restriction '${restrictionType}' with value '${toValue}'`, actions);
 
-  // TODO handle turn off of decimal flag
+  // handle turn off of decimal flag
+  else if (restrictionType === 'decimal' && toValue === false)
+    emitError('Changed to non decimal', `Field '${fieldName}' does not support decimal any longer`, actions);
 
-  // TODO handle rebuild index
+  // handle addition to allowed values
+  else if (restrictionType !== 'allowedValues' && _.indexOf(trail, 'allowedValues') !== -1)
+    emitError('Allowed Values Changed', `Field '${fieldName}' allowedValues restriction have changed`, actions);
 }
 
 function mergeMigrationPlans(firstPlan, secondPlan) {

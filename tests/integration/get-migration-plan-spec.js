@@ -373,7 +373,7 @@ describe('SimpleSchemaVersioning', function () {
     });
 
     describe('change restrictions', function () {
-      it('should not detect change in restrictions', function () {
+      it('should detect change in restrictions and throw adequate errors', function () {
         let SchemaV1 = new SimpleSchema({
           street: {
             type: String,
@@ -415,7 +415,13 @@ describe('SimpleSchemaVersioning', function () {
 
         let actual = SimpleSchemaVersioning.getMigrationPlan(SchemaV1, SchemaV2)
 
-        let expected = {};
+        let expected = {
+          "errors": [
+            new Meteor.Error(500, "Type Cast Needed", "Field 'zip' has changed types from 'String' to 'Number'"),
+            new Meteor.Error(500, "Values may not match", "Field 'zip' has new restriction 'max' with value '99999'"),
+            new Meteor.Error(500, "Values may not match", "Field 'zip' has new restriction 'min' with value '0'")
+          ]
+        };
 
         expect(actual).toEqual(expected);
       });
