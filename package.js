@@ -1,6 +1,6 @@
 Package.describe({
   name: 'davidyaha:simple-schema-versioning',
-  version: '0.0.3',
+  version: '0.0.4',
   summary: 'Versioning tool for aldeed:simple-schema',
   git: 'https://github.com/davidyaha/meteor-simple-schema-versioning.git',
   documentation: 'README.md'
@@ -27,13 +27,13 @@ Package.onTest(function(api) {
   api.use(['ecmascript', 'mongo', 'underscore']);
   api.use('sanjo:jasmine@0.18.0');
 
-  api.use('davidyaha:simple-schema-versioning');
+  api.use('davidyaha:simple-schema-versioning', 'server');
 
-  api.addFiles('tests/integration/get-migration-plan-spec.js');
+  api.addFiles('tests/integration/get-migration-plan-spec.js', 'server');
 
   // TODO rewrite those
   //api.addFiles('tests/integration/determine-version-spec.js');
 
-  api.addFiles('tests/integration/diff-spec.js');
-  api.addFiles('tests/integration/merge-object-spec.js');
+  api.addFiles('tests/integration/diff-spec.js', 'server');
+  api.addFiles('tests/integration/merge-object-spec.js', 'server');
 });
